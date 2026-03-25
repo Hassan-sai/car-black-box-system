@@ -95,6 +95,13 @@ Open the project in **MPLAB X IDE**, select the PIC18F4580 target, and build usi
 
 ---
 
+---
+
+## Project Presentation
+See `CAR_BLACK_BOX.pptx` for the full project documentation and system design slides.
+
+---
+
 ## Author
 
 Hassan Sai Siragari — [LinkedIn](https://linkedin.com/in/hassansai-siragari)
