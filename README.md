@@ -1,46 +1,54 @@
 # Car Black Box System
 
-A vehicle event data recorder (EDR) built using **Embedded C** on the **PIC18F4580 microcontroller**, programmed in **MPLAB X IDE**. Inspired by aircraft black boxes, this system continuously logs critical driving events — speed, gear changes, collisions — to external EEPROM memory in real time, with secure UART-based log download support.
+A real-time vehicle event data recorder (EDR) built in **Embedded C** on the **PIC18F4580 microcontroller**, programmed using **MPLAB X IDE**. Inspired by aircraft black boxes, this system continuously monitors and logs critical driving events — gear changes, collisions, speed — to external EEPROM via I2C, with secure UART-based log download and a password-protected menu system displayed on a character LCD.
 
 ---
 
-## Abstract
+## Project Structure
 
-The Black Box concept, widely known from aviation, is applied here to automobiles as an Event Data Recorder (EDR) / Accident Data Recorder (ADR). The system monitors vehicle behaviour in real time and logs critical events to help analyse rash driving, track vehicle usage, and improve road safety accountability.
-
----
-
-## Problem Statement
-
-With increasing road accidents caused by overspeeding and reckless driving, there is a need for a system that silently records driving events. This black box logs every critical event with a timestamp and speed reading — providing an unalterable record that can be downloaded via UART for analysis.
+| File | Description |
+|------|-------------|
+| `MAIN.C` | Entry point — initialises all peripherals, runs the main event loop and dispatches to dashboard, menu, password, and log screens |
+| `black_box.c` | Core logic — dashboard display, EEPROM read/write via I2C (24C02), real-time clock read, event capture, view/download/clear log, password and menu handling |
+| `main.h` | Global declarations — flags, shared variables, macros, and all function prototypes |
+| `adc.c / adc.h` | ADC driver — reads analogue speed sensor values from the PIC18F4580 ADC module |
+| `clcd.c / clcd.h` | Character LCD driver — initialisation, character and string output, cursor positioning |
+| `uart.c / uart.h` | UART driver — serial communication for downloading stored event logs to a PC |
+| `i2c.c / i2c.h` | I2C driver — start, stop, read, write operations for EEPROM and RTC communication |
+| `eeprom.c / eeprom.h` | Internal EEPROM driver — read/write to PIC18F4580 on-chip EEPROM |
+| `ds1307.c / ds1307.h` | DS1307 RTC driver — initialises and reads hours, minutes, seconds over I2C |
+| `isr.c` | Interrupt Service Routine — handles timer and peripheral interrupts |
+| `timer0.c / timer0.h` | Timer0 driver — configures and manages system timing |
+| `matrix_keypad.c / matrix_keypad.h` | Matrix keypad driver — detects key presses (state change and level change modes) |
+| `Makefile` | MPLAB X build configuration for PIC18F4580 target |
 
 ---
 
 ## System Features
 
-### Default screen (operation mode)
-- Acts as a live dashboard showing current time, vehicle speed, and the latest event
-- **Gear Up / Gear Down** keys navigate through gear events (GN, GR, G1–G4)
-- **Collision** key triggers and logs a collision event (C)
+### Dashboard (default screen)
+- Displays current time (from DS1307 RTC), vehicle speed (from ADC), and latest event
+- Gear Up / Gear Down keys navigate through gear events: GN, GR, G1–G4
+- Collision key logs a collision event instantly
 
-### Event capture
-- Captures and stores events in external EEPROM memory in real time
-- Every event is stored in the format: `EVENT TIME | EVENT SIGNATURE | SPEED AT EVENT`
-- Events are recorded continuously regardless of which menu screen is active
+### Real-time event capture
+- Events stored in **external 24C02 EEPROM** via I2C
+- Every event format: `EVENT TIME | EVENT SIGNATURE | SPEED`
+- Capture runs continuously — even while navigating menus
 
-### Login screen (secure access)
-- Accessed via UP or DOWN user keys
-- Password: 4-key combination, each press shown as `*`
-- Maximum 3 wrong attempts per 15 minutes — user blocked for 2 minutes after 3 failures
-- Incomplete entry (3-second pause) returns to default screen
+### Password-protected menu access
+- 4-key combination entry, each press shown as `*` on CLCD
+- Maximum 3 wrong attempts per 15 minutes — locked for 2 minutes after 3 failures
+- 3-second inactivity returns to dashboard automatically
 
-### Main menu
-Navigated via UP / DOWN keys with long-press selection:
-- **View Log** — displays stored events on CLCD
-- **Set Time** — adjust system clock (UP = field change, DOWN = increment)
-- **Download Log** — transmits all stored logs via UART; displays confirmation on CLCD
-- **Clear Log** — erases all stored events; displays confirmation on CLCD
-- **Change Password** — update the 4-key access password with confirmation
+### Menu options
+| Option | Function |
+|--------|----------|
+| View Log | Scrolls through stored events on CLCD |
+| Set Time | Adjusts DS1307 RTC clock fields |
+| Download Log | Transmits all events via UART to PC |
+| Clear Log | Erases all stored events from EEPROM |
+| Change Password | Updates the 4-key access password |
 
 ---
 
@@ -49,10 +57,10 @@ Navigated via UP / DOWN keys with long-press selection:
 - **Language**: Embedded C
 - **Microcontroller**: PIC18F4580
 - **IDE**: MPLAB X IDE
-- **Communication**: UART (for external log download)
-- **Storage**: External EEPROM (real-time event logging)
-- **Display**: CLCD (Character LCD)
-- **Concepts**: Firmware development, interrupt-driven event capture, memory management, real-time systems
+- **Protocols**: I2C (EEPROM + RTC), UART (log download)
+- **Peripherals**: ADC, Timer0, Interrupt Service Routine, Matrix Keypad, Character LCD
+- **Storage**: External 24C02 EEPROM (event logs), Internal EEPROM (password)
+- **RTC**: DS1307 for real-time timestamping
 
 ---
 
@@ -60,24 +68,30 @@ Navigated via UP / DOWN keys with long-press selection:
 
 | Component | Purpose |
 |-----------|---------|
-| PIC18F4580 | Main microcontroller — runs all firmware logic |
-| External EEPROM | Persistent storage for event logs |
-| CLCD | Display for dashboard, menus, and log view |
-| UART interface | Secure external access to download logs |
-| User keys (UP/DOWN) | Navigation and password entry |
+| PIC18F4580 | Main microcontroller |
+| 24C02 EEPROM | External persistent event log storage via I2C |
+| DS1307 RTC | Real-time clock for event timestamps via I2C |
+| Character LCD (CLCD) | Dashboard and menu display |
+| Matrix Keypad | User input — navigation and password entry |
+| ADC input | Reads analogue speed sensor |
+| UART interface | Downloads event logs to a PC |
 
 ---
 
 ## Event log format
 
-Each stored event follows this structure:
+```
+[HH:MM:SS]   [EVENT]   [SPEED]
+12:45:03     G3        72
+12:45:10     C         68      ← Collision detected
+12:46:01     G4        85
+```
 
-```
-[EVENT TIME]  [EVENT SIGNATURE]  [SPEED AT EVENT]
-Example:
-12:45:03      G3                 72 km/h
-12:45:10      C                  68 km/h   ← Collision detected
-```
+---
+
+## How to build
+
+Open the project in **MPLAB X IDE**, select the PIC18F4580 target, and build using the included `Makefile`. Flash the generated `.hex` file to the microcontroller using a PIC programmer.
 
 ---
 
